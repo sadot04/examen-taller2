@@ -37,7 +37,7 @@ export const InventoryView = {
               </tr>
             </thead>
             <tbody id="sneakers-table-body">
-              <!-- Renderizado dinámico -->
+              <!-- Renderizado dinámico seguro mediante DOM APIs -->
             </tbody>
           </table>
         </div>
@@ -59,14 +59,17 @@ export const InventoryView = {
                   <label>Marca *</label>
                   <input type="text" id="input-brand" class="form-control" placeholder="Ej: Nike" required>
                 </div>
+
                 <div class="form-group">
                   <label>Modelo *</label>
-                  <input type="text" id="input-model" class="form-control" placeholder="Ej: Air Max 90" required>
+                  <input type="text" id="input-model" class="form-control" placeholder="Ej: Dunk Low Retro" required>
                 </div>
+
                 <div class="form-group">
-                  <label>SKU (Código único) *</label>
-                  <input type="text" id="input-sku" class="form-control" placeholder="Ej: CD0881-100" required>
+                  <label>SKU (Código Único) *</label>
+                  <input type="text" id="input-sku" class="form-control" placeholder="Ej: DD1391-100" required>
                 </div>
+
                 <div class="form-group">
                   <label>Categoría</label>
                   <select id="input-category" class="form-control">
@@ -76,25 +79,30 @@ export const InventoryView = {
                     <option value="Skate">Skate</option>
                   </select>
                 </div>
+
                 <div class="form-group">
                   <label>Talla (US) *</label>
-                  <input type="number" id="input-size" step="0.5" class="form-control" placeholder="Ej: 10.5" required>
+                  <input type="number" id="input-size" step="0.5" min="1" max="20" class="form-control" placeholder="9.5" required>
                 </div>
+
                 <div class="form-group">
                   <label>Precio ($USD) *</label>
-                  <input type="number" id="input-price" step="0.01" class="form-control" placeholder="Ej: 150.00" required>
+                  <input type="number" id="input-price" step="0.01" min="0" class="form-control" placeholder="120.00" required>
                 </div>
+
                 <div class="form-group">
-                  <label>Stock Disponible *</label>
-                  <input type="number" id="input-stock" class="form-control" placeholder="Ej: 8" required>
+                  <label>Stock (Pares) *</label>
+                  <input type="number" id="input-stock" min="0" class="form-control" placeholder="10" required>
                 </div>
+
                 <div class="form-group">
                   <label>Colorway</label>
-                  <input type="text" id="input-colorway" class="form-control" placeholder="Ej: Triple White">
+                  <input type="text" id="input-colorway" class="form-control" placeholder="Ej: Panda White/Black">
                 </div>
+
                 <div class="form-group col-span-2">
                   <label>URL de Imagen</label>
-                  <input type="url" id="input-image" class="form-control" placeholder="https://ejemplo.com/sneaker.jpg">
+                  <input type="url" id="input-image" class="form-control" placeholder="https://images.unsplash.com/...">
                 </div>
               </div>
             </div>
@@ -138,47 +146,118 @@ export const InventoryView = {
     const tbody = document.getElementById('sneakers-table-body');
     if (!tbody) return;
 
+    tbody.innerHTML = '';
     const sneakers = sneakerService.getAll({ search, brand });
 
     if (sneakers.length === 0) {
-      tbody.innerHTML = `
-        <tr>
-          <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 32px;">
-            No se encontraron pares en el inventario con los criterios seleccionados.
-          </td>
-        </tr>
-      `;
+      const emptyRow = document.createElement('tr');
+      const emptyCell = document.createElement('td');
+      emptyCell.colSpan = 7;
+      emptyCell.style.textAlign = 'center';
+      emptyCell.style.color = 'var(--text-muted)';
+      emptyCell.style.padding = '32px';
+      emptyCell.textContent = 'No se encontraron pares en el inventario con los criterios seleccionados.';
+      emptyRow.appendChild(emptyCell);
+      tbody.appendChild(emptyRow);
       return;
     }
 
-    tbody.innerHTML = sneakers.map(s => `
-      <tr>
-        <td>
-          <div class="product-cell">
-            <img src="${s.imageUrl}" alt="${s.model}" class="product-thumbnail" onerror="this.src='https://images.unsplash.com/photo-1552346154-21d32810aba3?auto=format&fit=crop&w=400&q=80'">
-            <div>
-              <div style="font-weight: 600; color: var(--text-primary);">${s.model}</div>
-              <div style="font-size: 0.78rem; color: var(--text-muted);">${s.colorway} &bull; ${s.category}</div>
-            </div>
-          </div>
-        </td>
-        <td><span class="badge badge-brand">${s.brand}</span></td>
-        <td><strong>US ${s.size}</strong></td>
-        <td><code>${s.sku}</code></td>
-        <td><strong>$${s.price.toFixed(2)}</strong></td>
-        <td>
-          <span class="badge ${s.stock <= 3 ? 'badge-stock-low' : 'badge-stock-ok'}">
-            ${s.stock} un.
-          </span>
-        </td>
-        <td style="text-align: right;">
-          <div style="display: inline-flex; gap: 8px;">
-            <button class="btn btn-secondary btn-sm" onclick="window.inventoryModule.edit('${s.id}')">Editar</button>
-            <button class="btn btn-danger btn-sm" onclick="window.inventoryModule.delete('${s.id}')">Eliminar</button>
-          </div>
-        </td>
-      </tr>
-    `).join('');
+    sneakers.forEach(s => {
+      const tr = document.createElement('tr');
+
+      // 1. Producto (Thumbnail + Modelo + Colorway/Categoría)
+      const tdProduct = document.createElement('td');
+      const productCell = document.createElement('div');
+      productCell.className = 'product-cell';
+
+      const img = document.createElement('img');
+      img.src = s.imageUrl || 'https://images.unsplash.com/photo-1552346154-21d32810aba3?auto=format&fit=crop&w=400&q=80';
+      img.alt = s.model;
+      img.className = 'product-thumbnail';
+      img.onerror = () => {
+        img.src = 'https://images.unsplash.com/photo-1552346154-21d32810aba3?auto=format&fit=crop&w=400&q=80';
+      };
+
+      const productDetails = document.createElement('div');
+      const modelDiv = document.createElement('div');
+      modelDiv.style.fontWeight = '600';
+      modelDiv.style.color = 'var(--text-primary)';
+      modelDiv.textContent = s.model;
+
+      const subDiv = document.createElement('div');
+      subDiv.style.fontSize = '0.78rem';
+      subDiv.style.color = 'var(--text-muted)';
+      subDiv.textContent = `${s.colorway} • ${s.category}`;
+
+      productDetails.appendChild(modelDiv);
+      productDetails.appendChild(subDiv);
+      productCell.appendChild(img);
+      productCell.appendChild(productDetails);
+      tdProduct.appendChild(productCell);
+      tr.appendChild(tdProduct);
+
+      // 2. Marca
+      const tdBrand = document.createElement('td');
+      const brandBadge = document.createElement('span');
+      brandBadge.className = 'badge badge-brand';
+      brandBadge.textContent = s.brand;
+      tdBrand.appendChild(brandBadge);
+      tr.appendChild(tdBrand);
+
+      // 3. Talla
+      const tdSize = document.createElement('td');
+      const strongSize = document.createElement('strong');
+      strongSize.textContent = `US ${s.size}`;
+      tdSize.appendChild(strongSize);
+      tr.appendChild(tdSize);
+
+      // 4. SKU
+      const tdSku = document.createElement('td');
+      const codeSku = document.createElement('code');
+      codeSku.textContent = s.sku;
+      tdSku.appendChild(codeSku);
+      tr.appendChild(tdSku);
+
+      // 5. Precio
+      const tdPrice = document.createElement('td');
+      const strongPrice = document.createElement('strong');
+      strongPrice.textContent = `$${s.price.toFixed(2)}`;
+      tdPrice.appendChild(strongPrice);
+      tr.appendChild(tdPrice);
+
+      // 6. Stock
+      const tdStock = document.createElement('td');
+      const stockBadge = document.createElement('span');
+      stockBadge.className = `badge ${s.stock <= 3 ? 'badge-stock-low' : 'badge-stock-ok'}`;
+      stockBadge.textContent = `${s.stock} un.`;
+      tdStock.appendChild(stockBadge);
+      tr.appendChild(tdStock);
+
+      // 7. Acciones
+      const tdActions = document.createElement('td');
+      tdActions.style.textAlign = 'right';
+
+      const actionsDiv = document.createElement('div');
+      actionsDiv.style.display = 'inline-flex';
+      actionsDiv.style.gap = '8px';
+
+      const btnEdit = document.createElement('button');
+      btnEdit.className = 'btn btn-secondary btn-sm';
+      btnEdit.textContent = 'Editar';
+      btnEdit.addEventListener('click', () => this.edit(s.id));
+
+      const btnDelete = document.createElement('button');
+      btnDelete.className = 'btn btn-danger btn-sm';
+      btnDelete.textContent = 'Eliminar';
+      btnDelete.addEventListener('click', () => this.delete(s.id));
+
+      actionsDiv.appendChild(btnEdit);
+      actionsDiv.appendChild(btnDelete);
+      tdActions.appendChild(actionsDiv);
+      tr.appendChild(tdActions);
+
+      tbody.appendChild(tr);
+    });
   },
 
   openModal(sneaker = null) {
@@ -256,11 +335,16 @@ export const InventoryView = {
   delete(id) {
     const sneaker = sneakerService.getById(id);
     if (sneaker && confirm(`¿Estás seguro de eliminar "${sneaker.brand} - ${sneaker.model}"?`)) {
-      sneakerService.delete(id);
-      this.refreshTable();
+      const result = sneakerService.delete(id);
+      if (result && result.success === false) {
+        alert(result.errors ? result.errors.join('\n') : 'No se pudo eliminar el sneaker.');
+      } else {
+        this.refreshTable();
+      }
     }
   }
 };
 
-// Asignar al objeto global para callbacks de botones en tabla
-window.inventoryModule = InventoryView;
+if (typeof window !== 'undefined') {
+  window.inventoryModule = InventoryView;
+}
