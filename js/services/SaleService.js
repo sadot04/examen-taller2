@@ -3,7 +3,8 @@ import { sneakerService } from './SneakerService.js';
 
 /**
  * SaleService
- * Maneja las operaciones CRUD (ABM) de Ventas con soporte para filtros por cliente y rango de fechas.
+ * Maneja las operaciones CRUD (ABM) de Ventas con soporte para filtros combinados
+ * por cliente, rango de fechas, sneakerId y conjunto de IDs de sneakers filtrados.
  */
 class SaleService {
   constructor() {
@@ -130,7 +131,7 @@ class SaleService {
   }
 
   /**
-   * LISTAR VENTAS con soporte para filtros por cliente, texto y rango de fechas
+   * LISTAR VENTAS con soporte para filtros por cliente, texto, rango de fechas y conjunto de sneakers válidos
    * @param {Object} [filtros]
    * @param {string} [filtros.search] - Búsqueda por texto (cliente o resumen de sneaker)
    * @param {string} [filtros.customer] - Filtro por cliente específico
@@ -138,11 +139,25 @@ class SaleService {
    * @param {string} [filtros.startDate] - Fecha inicio (YYYY-MM-DD)
    * @param {string} [filtros.endDate] - Fecha fin (YYYY-MM-DD)
    * @param {string} [filtros.fecha] - Fecha exacta
+   * @param {string|number} [filtros.sneakerId] - ID de sneaker específico
+   * @param {Array<string|number>|Set<string>} [filtros.sneakerIds] - Lista o Set de IDs de sneakers permitidos (para coordinar con filtros de producto)
    * @returns {Sale[]}
    */
-  getAll({ search = '', customer = '', cliente = '', startDate = '', endDate = '', fecha = '' } = {}) {
+  getAll({ search = '', customer = '', cliente = '', startDate = '', endDate = '', fecha = '', sneakerId = '', sneakerIds = null } = {}) {
     let result = [...this.sales];
     const targetCustomer = customer || cliente;
+
+    // Filtro por conjunto de sneakers restringidos por filtros de producto (marca, precio, etc.)
+    if (sneakerIds !== null && sneakerIds !== undefined) {
+      const allowedSet = sneakerIds instanceof Set 
+        ? sneakerIds 
+        : new Set(Array.isArray(sneakerIds) ? sneakerIds.map(String) : [String(sneakerIds)]);
+      result = result.filter(s => allowedSet.has(String(s.sneakerId)));
+    }
+
+    if (sneakerId) {
+      result = result.filter(s => String(s.sneakerId) === String(sneakerId));
+    }
 
     if (search) {
       const q = search.toLowerCase();
@@ -192,7 +207,7 @@ class SaleService {
   }
 
   /**
-   * ACTUALIZAR VENTA (Modificación segura con validación previa y stock atómico)
+   * ACTUALIZAR VENTA (Modificación segura con validación previa, preservación de precio histórico y stock atómico)
    * @param {string|number} id
    * @param {Object} data
    * @returns {{success: boolean, data?: Sale, errors?: string[]}}
@@ -204,7 +219,10 @@ class SaleService {
     }
 
     const currentSale = this.sales[index];
-    const newSneakerId = data.sneakerId ? String(data.sneakerId) : currentSale.sneakerId;
+    const isSneakerIdProvided = data.sneakerId !== undefined && data.sneakerId !== null && String(data.sneakerId) !== '';
+    const newSneakerId = isSneakerIdProvided ? String(data.sneakerId) : currentSale.sneakerId;
+    const isChangingSneaker = newSneakerId !== currentSale.sneakerId;
+
     const rawCantidad = (data.cantidad !== undefined ? data.cantidad : data.quantity) !== undefined
       ? Number(data.cantidad !== undefined ? data.cantidad : data.quantity)
       : currentSale.cantidad;
@@ -214,9 +232,19 @@ class SaleService {
       return { success: false, errors: ['El sneaker seleccionado no existe en el inventario activo.'] };
     }
 
-    const newUnitPrice = Number((data.precioUnitario !== undefined ? data.precioUnitario : data.unitPrice) !== undefined
-      ? (data.precioUnitario !== undefined ? data.precioUnitario : data.unitPrice)
-      : targetSneaker.price);
+    // Determinar precio unitario:
+    // 1. Si se suministró explícitamente data.precioUnitario / data.unitPrice, usarlo.
+    // 2. Si NO se suministró precio y el sneaker NO cambió, preservar el precio unitario histórico de la venta (currentSale.precioUnitario).
+    // 3. Si se cambió de producto y NO se suministró precio, usar el precio de inventario actual del nuevo sneaker (targetSneaker.price).
+    let newUnitPrice;
+    const suppliedPrice = data.precioUnitario !== undefined ? data.precioUnitario : data.unitPrice;
+    if (suppliedPrice !== undefined && suppliedPrice !== null) {
+      newUnitPrice = Number(suppliedPrice);
+    } else if (!isChangingSneaker) {
+      newUnitPrice = currentSale.precioUnitario;
+    } else {
+      newUnitPrice = targetSneaker.price;
+    }
 
     const newTotal = rawCantidad * newUnitPrice;
     const updatedSummary = `${targetSneaker.brand} ${targetSneaker.model} (US ${targetSneaker.size}) [${targetSneaker.sku}]`;
@@ -245,7 +273,7 @@ class SaleService {
     }
 
     // 2. Verificar disponibilidad de stock
-    if (newSneakerId === currentSale.sneakerId) {
+    if (!isChangingSneaker) {
       const delta = rawCantidad - currentSale.cantidad;
       if (delta > 0 && targetSneaker.stock < delta) {
         return {
@@ -263,7 +291,7 @@ class SaleService {
     }
 
     // 3. Aplicar ajustes de stock de manera atómica con rollback seguro
-    if (newSneakerId === currentSale.sneakerId) {
+    if (!isChangingSneaker) {
       const delta = rawCantidad - currentSale.cantidad;
       if (delta !== 0) {
         const updateResult = sneakerService.update(targetSneaker.id, {
@@ -362,16 +390,19 @@ class SaleService {
   }
 
   /**
-   * Métricas consolidadas de ventas y productos más vendidos
+   * Métricas consolidadas de ventas y productos más vendidos (con soporte opcional de filtros)
+   * @param {Object} [filters] - Filtros opcionales para acotar las estadísticas
    */
-  getStats() {
-    const totalTransactions = this.sales.length;
-    const totalPairsSold = this.sales.reduce((sum, s) => sum + s.cantidad, 0);
-    const totalRevenue = this.sales.reduce((sum, s) => sum + s.total, 0);
+  getStats(filters = null) {
+    const targetSales = filters ? this.getAll(filters) : this.sales;
+
+    const totalTransactions = targetSales.length;
+    const totalPairsSold = targetSales.reduce((sum, s) => sum + s.cantidad, 0);
+    const totalRevenue = targetSales.reduce((sum, s) => sum + s.total, 0);
 
     // Calcular producto más vendido por pares acumulados
     const sneakerSalesMap = {};
-    this.sales.forEach(sale => {
+    targetSales.forEach(sale => {
       if (!sneakerSalesMap[sale.sneakerId]) {
         sneakerSalesMap[sale.sneakerId] = {
           sneakerId: sale.sneakerId,
@@ -388,7 +419,7 @@ class SaleService {
     const bestSeller = topSellingProducts.length > 0 ? topSellingProducts[0] : null;
 
     // Lista de clientes únicos
-    const uniqueCustomers = [...new Set(this.sales.map(s => s.cliente))].filter(Boolean);
+    const uniqueCustomers = [...new Set(targetSales.map(s => s.cliente))].filter(Boolean);
 
     return {
       totalTransactions,

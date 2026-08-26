@@ -261,19 +261,23 @@ class SneakerService {
   }
 
   /**
-   * Obtiene métricas y estadísticas del inventario
+   * Obtiene métricas y estadísticas del inventario (con soporte opcional de filtros)
+   * Stock crítico definido como 3 unidades o menos (<= 3).
+   * @param {Object} [filters] - Filtros opcionales para acotar las estadísticas
    */
-  getStats() {
-    const totalItems = this.sneakers.length;
-    const totalPairs = this.sneakers.reduce((sum, s) => sum + s.stock, 0);
-    const totalInventoryValue = this.sneakers.reduce((sum, s) => sum + (s.price * s.stock), 0);
+  getStats(filters = null) {
+    const targetList = filters ? this.getAll(filters) : this.sneakers;
+
+    const totalItems = targetList.length;
+    const totalPairs = targetList.reduce((sum, s) => sum + s.stock, 0);
+    const totalInventoryValue = targetList.reduce((sum, s) => sum + (s.price * s.stock), 0);
     
-    // Alertas de stock bajo: menor a 3 unidades (o <= 2)
-    const lowStockSneakers = this.sneakers.filter(s => s.stock < 3);
+    // Alertas de stock crítico: 3 unidades o menos (<= 3)
+    const lowStockSneakers = targetList.filter(s => s.stock <= 3);
     const lowStockCount = lowStockSneakers.length;
 
     // Conteo por marcas
-    const brandCounts = this.sneakers.reduce((acc, s) => {
+    const brandCounts = targetList.reduce((acc, s) => {
       acc[s.brand] = (acc[s.brand] || 0) + s.stock;
       return acc;
     }, {});

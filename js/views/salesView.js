@@ -108,9 +108,20 @@ export const SalesView = {
   populateCustomerFilter() {
     const select = document.getElementById('sales-customer-filter');
     if (!select) return;
+
+    select.innerHTML = '';
+    const defaultOption = document.createElement('option');
+    defaultOption.value = 'ALL';
+    defaultOption.textContent = 'Todos los clientes';
+    select.appendChild(defaultOption);
+
     const stats = saleService.getStats();
-    select.innerHTML = '<option value="ALL">Todos los clientes</option>' +
-      stats.uniqueCustomers.map(c => `<option value="${c}">${c}</option>`).join('');
+    stats.uniqueCustomers.forEach(c => {
+      const option = document.createElement('option');
+      option.value = c;
+      option.textContent = c;
+      select.appendChild(option);
+    });
   },
 
   bindEvents() {
