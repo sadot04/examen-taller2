@@ -1,7 +1,7 @@
 /**
  * Sneaker Model
  * Define el esquema de datos y validaciones para la entidad Sneaker.
- * Campos requeridos: id, modelo, marca, talla (número), color, precio (número), stock (número).
+ * Campos: id, modelo, marca, talla (número), color, precio (número), stock (número), sku, categoria.
  */
 export class Sneaker {
   /**
@@ -18,8 +18,9 @@ export class Sneaker {
    * @param {number} [data.precio] - Precio en formato numérico
    * @param {number} [data.price] - Alias de compatibilidad
    * @param {number} [data.stock] - Cantidad de existencias (número entero >= 0)
-   * @param {string} [data.sku] - Código SKU de referencia
-   * @param {string} [data.category] - Categoría (Basketball, Lifestyle, Running, Skate)
+   * @param {string} data.sku - Código SKU único obligatorio
+   * @param {string} [data.categoria] - Categoría (Basketball, Lifestyle, Running, Skate)
+   * @param {string} [data.category] - Alias de compatibilidad
    * @param {string} [data.imageUrl] - URL de imagen
    */
   constructor({
@@ -36,18 +37,19 @@ export class Sneaker {
     price,
     stock,
     sku,
-    category = 'Lifestyle',
+    categoria,
+    category,
     imageUrl = 'https://images.unsplash.com/photo-1552346154-21d32810aba3?auto=format&fit=crop&w=400&q=80'
   } = {}) {
     this.id = id ? String(id) : null;
-    this.modelo = (modelo || model || '').trim();
-    this.marca = (marca || brand || '').trim();
-    this.talla = Number(talla !== undefined ? talla : size) || 0;
-    this.color = (color || colorway || 'Clásico').trim();
-    this.precio = Number(precio !== undefined ? precio : price) || 0;
-    this.stock = parseInt(stock, 10) || 0;
-    this.sku = (sku || `SKU-${Math.floor(1000 + Math.random() * 9000)}`).trim().toUpperCase();
-    this.category = category;
+    this.modelo = (modelo !== undefined ? modelo : (model !== undefined ? model : '')).trim();
+    this.marca = (marca !== undefined ? marca : (brand !== undefined ? brand : '')).trim();
+    this.talla = Number(talla !== undefined ? talla : (size !== undefined ? size : 0)) || 0;
+    this.color = (color !== undefined ? color : (colorway !== undefined ? colorway : 'Clásico')).trim();
+    this.precio = Number(precio !== undefined ? precio : (price !== undefined ? price : 0)) || 0;
+    this.stock = parseInt(stock !== undefined ? stock : 0, 10) || 0;
+    this.sku = (sku || '').trim().toUpperCase();
+    this.categoria = (categoria !== undefined ? categoria : (category !== undefined ? category : 'Lifestyle')).trim();
     this.imageUrl = (imageUrl || '').trim();
     this.createdAt = new Date().toISOString();
     this.updatedAt = new Date().toISOString();
@@ -59,6 +61,7 @@ export class Sneaker {
   get size() { return this.talla; }
   get colorway() { return this.color; }
   get price() { return this.precio; }
+  get category() { return this.categoria; }
 
   /**
    * Valida las reglas de negocio del modelo
@@ -66,6 +69,7 @@ export class Sneaker {
    */
   validate() {
     const errors = [];
+    if (!this.sku) errors.push('El campo "SKU" es obligatorio y debe ser único.');
     if (!this.modelo) errors.push('El campo "modelo" es obligatorio.');
     if (!this.marca) errors.push('El campo "marca" es obligatorio.');
     if (!this.color) errors.push('El campo "color" es obligatorio.');

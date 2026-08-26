@@ -7,7 +7,7 @@ export const InventoryView = {
     container.innerHTML = `
       <div class="toolbar">
         <div class="search-filter-group">
-          <input type="text" id="inventory-search" class="input-search" placeholder="🔍 Buscar por modelo, marca o color...">
+          <input type="text" id="inventory-search" class="input-search" placeholder="🔍 Buscar por modelo, marca, color o SKU...">
           <select id="brand-filter" class="select-filter">
             <option value="ALL">Todas las marcas</option>
             <option value="Nike">Nike</option>
@@ -15,6 +15,13 @@ export const InventoryView = {
             <option value="New Balance">New Balance</option>
             <option value="Puma">Puma</option>
             <option value="Jordan">Jordan</option>
+          </select>
+          <select id="category-filter" class="select-filter">
+            <option value="ALL">Todas las categorías</option>
+            <option value="Basketball">Basketball</option>
+            <option value="Lifestyle">Lifestyle</option>
+            <option value="Running">Running</option>
+            <option value="Skate">Skate</option>
           </select>
         </div>
         <button id="btn-add-sneaker" class="btn btn-primary">
@@ -30,6 +37,8 @@ export const InventoryView = {
                 <th>ID</th>
                 <th>Modelo y Foto</th>
                 <th>Marca</th>
+                <th>Categoría</th>
+                <th>SKU</th>
                 <th>Talla</th>
                 <th>Color</th>
                 <th>Precio</th>
@@ -65,6 +74,20 @@ export const InventoryView = {
                   <label for="input-marca">Marca *</label>
                   <input type="text" id="input-marca" class="form-control" placeholder="Ej: Nike" required>
                   <small class="field-help" style="color: var(--text-muted); font-size: 0.75rem;">Fabricante o marca oficial</small>
+                </div>
+                <div class="form-group">
+                  <label for="input-sku">SKU (Código Único) *</label>
+                  <input type="text" id="input-sku" class="form-control" placeholder="Ej: DZ5485-612" required>
+                  <small class="field-help" style="color: var(--text-muted); font-size: 0.75rem;">Identificador comercial único</small>
+                </div>
+                <div class="form-group">
+                  <label for="input-categoria">Categoría</label>
+                  <select id="input-categoria" class="form-control">
+                    <option value="Lifestyle">Lifestyle</option>
+                    <option value="Basketball">Basketball</option>
+                    <option value="Running">Running</option>
+                    <option value="Skate">Skate</option>
+                  </select>
                 </div>
                 <div class="form-group">
                   <label for="input-talla">Talla (Número) *</label>
@@ -108,6 +131,7 @@ export const InventoryView = {
   bindEvents() {
     const searchInput = document.getElementById('inventory-search');
     const brandFilter = document.getElementById('brand-filter');
+    const categoryFilter = document.getElementById('category-filter');
     const btnAdd = document.getElementById('btn-add-sneaker');
     const btnCloseModal = document.getElementById('btn-close-modal');
     const btnCancelModal = document.getElementById('btn-cancel-modal');
@@ -115,6 +139,7 @@ export const InventoryView = {
 
     searchInput?.addEventListener('input', () => this.refreshTable());
     brandFilter?.addEventListener('change', () => this.refreshTable());
+    categoryFilter?.addEventListener('change', () => this.refreshTable());
 
     btnAdd?.addEventListener('click', () => this.openModal());
     btnCloseModal?.addEventListener('click', () => this.closeModal());
@@ -129,16 +154,17 @@ export const InventoryView = {
   refreshTable() {
     const search = document.getElementById('inventory-search')?.value || '';
     const marca = document.getElementById('brand-filter')?.value || '';
+    const categoria = document.getElementById('category-filter')?.value || '';
     const tbody = document.getElementById('sneakers-table-body');
     if (!tbody) return;
 
-    // Llamada a la función pura de listado con filtros
-    const sneakers = sneakerService.listar({ search, marca });
+    // Llamada a la función de listado con filtros de búsqueda, marca y categoría
+    const sneakers = sneakerService.listar({ search, marca, categoria });
 
     if (sneakers.length === 0) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 36px;">
+          <td colspan="10" style="text-align: center; color: var(--text-muted); padding: 36px;">
             No se encontraron sneakers en el inventario que coincidan con la búsqueda.
           </td>
         </tr>
@@ -154,11 +180,13 @@ export const InventoryView = {
             <img src="${s.imageUrl}" alt="${s.modelo}" class="product-thumbnail" onerror="this.src='https://images.unsplash.com/photo-1552346154-21d32810aba3?auto=format&fit=crop&w=400&q=80'">
             <div>
               <div style="font-weight: 600; color: var(--text-primary);">${s.modelo}</div>
-              <div style="font-size: 0.78rem; color: var(--text-muted);">${s.category || 'General'}</div>
+              <div style="font-size: 0.78rem; color: var(--text-muted);">${s.color}</div>
             </div>
           </div>
         </td>
         <td><span class="badge badge-brand">${s.marca}</span></td>
+        <td><span class="badge" style="background: rgba(255,255,255,0.06); color: var(--text-secondary);">${s.categoria}</span></td>
+        <td><code>${s.sku}</code></td>
         <td><strong>US ${s.talla}</strong></td>
         <td><span style="color: var(--text-secondary);">${s.color}</span></td>
         <td><strong style="color: #fff;">$${s.precio.toFixed(2)}</strong></td>
@@ -194,6 +222,8 @@ export const InventoryView = {
       modalTitle.textContent = `Editar Sneaker (#${sneaker.id})`;
       document.getElementById('input-modelo').value = sneaker.modelo;
       document.getElementById('input-marca').value = sneaker.marca;
+      document.getElementById('input-sku').value = sneaker.sku;
+      document.getElementById('input-categoria').value = sneaker.categoria || 'Lifestyle';
       document.getElementById('input-talla').value = sneaker.talla;
       document.getElementById('input-color').value = sneaker.color;
       document.getElementById('input-precio').value = sneaker.precio;
@@ -217,6 +247,8 @@ export const InventoryView = {
   handleFormSubmit() {
     const modelo = document.getElementById('input-modelo').value;
     const marca = document.getElementById('input-marca').value;
+    const sku = document.getElementById('input-sku').value;
+    const categoria = document.getElementById('input-categoria').value;
     const talla = parseFloat(document.getElementById('input-talla').value);
     const color = document.getElementById('input-color').value;
     const precio = parseFloat(document.getElementById('input-precio').value);
@@ -226,6 +258,8 @@ export const InventoryView = {
     const payload = {
       modelo,
       marca,
+      sku,
+      categoria,
       talla,
       color,
       precio,
@@ -262,7 +296,7 @@ export const InventoryView = {
 
   delete(id) {
     const sneaker = sneakerService.buscarPorId(id);
-    if (sneaker && confirm(`¿Confirmas que deseas eliminar el sneaker "${sneaker.marca} - ${sneaker.modelo}" (Talla US ${sneaker.talla})?`)) {
+    if (sneaker && confirm(`¿Confirmas que deseas eliminar el sneaker "${sneaker.marca} - ${sneaker.modelo}" (SKU: ${sneaker.sku})?`)) {
       sneakerService.eliminar(id);
       this.refreshTable();
     }
