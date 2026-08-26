@@ -2,14 +2,24 @@ import { Sneaker } from '../models/Sneaker.js';
 
 /**
  * SneakerService
- * Maneja las operaciones CRUD (ABM) de inventario completamente en memoria.
+ * Maneja las operaciones CRUD (ABM) de inventario completamente en memoria,
+ * con soporte para filtros avanzados por texto, marca, categoría y rango de precios.
  */
 class SneakerService {
   constructor() {
     /** @type {Sneaker[]} */
     this.sneakers = [];
     this.nextId = 1;
+    this.saleService = null;
     this.loadSeedData();
+  }
+
+  /**
+   * Permite registrar la referencia a SaleService para integridad referencial
+   * @param {Object} service
+   */
+  setSaleService(service) {
+    this.saleService = service;
   }
 
   /**
@@ -67,35 +77,54 @@ class SneakerService {
   }
 
   /**
-   * Obtiene todos los sneakers con opciones de filtrado y búsqueda
+   * Obtiene todos los sneakers con opciones de filtrado y búsqueda avanzada
    * @param {Object} [filters]
-   * @param {string} [filters.search] - Búsqueda por texto (marca, modelo, sku)
+   * @param {string} [filters.search] - Búsqueda por texto (marca, modelo, sku, colorway)
    * @param {string} [filters.brand] - Filtro por marca
+   * @param {string} [filters.marca] - Alias de filtro por marca
    * @param {string} [filters.category] - Filtro por categoría
+   * @param {string} [filters.categoria] - Alias de categoría
+   * @param {number} [filters.minPrice] - Precio mínimo
+   * @param {number} [filters.maxPrice] - Precio máximo
    * @returns {Sneaker[]}
    */
-  getAll({ search = '', brand = '', category = '' } = {}) {
+  getAll({ search = '', brand = '', marca = '', category = '', categoria = '', minPrice = null, maxPrice = null } = {}) {
     let result = [...this.sneakers];
+    const targetBrand = brand || marca;
+    const targetCategory = category || categoria;
 
     if (search) {
       const q = search.toLowerCase();
       result = result.filter(s =>
-        s.model.toLowerCase().includes(q) ||
-        s.brand.toLowerCase().includes(q) ||
-        s.sku.toLowerCase().includes(q) ||
-        s.colorway.toLowerCase().includes(q)
+        (s.model && s.model.toLowerCase().includes(q)) ||
+        (s.brand && s.brand.toLowerCase().includes(q)) ||
+        (s.sku && s.sku.toLowerCase().includes(q)) ||
+        (s.colorway && s.colorway.toLowerCase().includes(q))
       );
     }
 
-    if (brand && brand !== 'ALL') {
-      result = result.filter(s => s.brand.toLowerCase() === brand.toLowerCase());
+    if (targetBrand && targetBrand !== 'ALL') {
+      result = result.filter(s => s.brand.toLowerCase() === targetBrand.toLowerCase());
     }
 
-    if (category && category !== 'ALL') {
-      result = result.filter(s => s.category.toLowerCase() === category.toLowerCase());
+    if (targetCategory && targetCategory !== 'ALL') {
+      result = result.filter(s => s.category.toLowerCase() === targetCategory.toLowerCase());
+    }
+
+    if (minPrice !== null && minPrice !== '' && !isNaN(Number(minPrice))) {
+      result = result.filter(s => s.price >= Number(minPrice));
+    }
+
+    if (maxPrice !== null && maxPrice !== '' && !isNaN(Number(maxPrice))) {
+      result = result.filter(s => s.price <= Number(maxPrice));
     }
 
     return result;
+  }
+
+  // Alias
+  listar(filters) {
+    return this.getAll(filters);
   }
 
   /**
@@ -106,6 +135,11 @@ class SneakerService {
   getById(id) {
     const targetId = String(id);
     return this.sneakers.find(s => s.id === targetId) || null;
+  }
+
+  // Alias
+  buscarPorId(id) {
+    return this.getById(id);
   }
 
   /**
@@ -132,6 +166,25 @@ class SneakerService {
     return { success: true, data: sneaker };
   }
 
+  // Alias
+  crear(data) {
+    return this.create(data);
+  }
+
+  /**
+   * Normaliza datos para actualizar
+   */
+  _normalizeFields(data = {}) {
+    const normalized = { ...data };
+    if (data.modelo !== undefined && data.model === undefined) normalized.model = data.modelo;
+    if (data.marca !== undefined && data.brand === undefined) normalized.brand = data.marca;
+    if (data.talla !== undefined && data.size === undefined) normalized.size = data.talla;
+    if (data.color !== undefined && data.colorway === undefined) normalized.colorway = data.color;
+    if (data.precio !== undefined && data.price === undefined) normalized.price = data.precio;
+    if (data.categoria !== undefined && data.category === undefined) normalized.category = data.categoria;
+    return normalized;
+  }
+
   /**
    * Actualiza un registro existente (Modificación)
    * @param {string|number} id
@@ -145,9 +198,11 @@ class SneakerService {
     }
 
     const current = this.sneakers[index];
+    const incoming = this._normalizeFields(data);
+
     const updatedSneaker = new Sneaker({
       ...current,
-      ...data,
+      ...incoming,
       id: current.id,
       createdAt: current.createdAt
     });
@@ -168,15 +223,41 @@ class SneakerService {
     return { success: true, data: updatedSneaker };
   }
 
+  // Alias
+  actualizar(id, data) {
+    return this.update(id, data);
+  }
+
   /**
    * Elimina un registro de la memoria (Baja)
    * @param {string|number} id
-   * @returns {boolean}
+   * @returns {{success: boolean, errors?: string[]}}
    */
   delete(id) {
+    const targetId = String(id);
+    const sneaker = this.getById(targetId);
+    if (!sneaker) {
+      return { success: false, errors: ['Sneaker no encontrado.'] };
+    }
+
+    // Validar integridad referencial con ventas si está presente el servicio
+    if (this.saleService && typeof this.saleService.hasSalesForSneaker === 'function') {
+      if (this.saleService.hasSalesForSneaker(targetId)) {
+        return {
+          success: false,
+          errors: [`No se puede eliminar el sneaker "${sneaker.brand} - ${sneaker.model}" porque posee transacciones registradas.`]
+        };
+      }
+    }
+
     const initialLength = this.sneakers.length;
-    this.sneakers = this.sneakers.filter(s => s.id !== String(id));
-    return this.sneakers.length < initialLength;
+    this.sneakers = this.sneakers.filter(s => s.id !== targetId);
+    return { success: this.sneakers.length < initialLength };
+  }
+
+  // Alias
+  eliminar(id) {
+    return this.delete(id);
   }
 
   /**
@@ -186,7 +267,10 @@ class SneakerService {
     const totalItems = this.sneakers.length;
     const totalPairs = this.sneakers.reduce((sum, s) => sum + s.stock, 0);
     const totalInventoryValue = this.sneakers.reduce((sum, s) => sum + (s.price * s.stock), 0);
-    const lowStockCount = this.sneakers.filter(s => s.stock <= 3).length;
+    
+    // Alertas de stock bajo: menor a 3 unidades (o <= 2)
+    const lowStockSneakers = this.sneakers.filter(s => s.stock < 3);
+    const lowStockCount = lowStockSneakers.length;
 
     // Conteo por marcas
     const brandCounts = this.sneakers.reduce((acc, s) => {
@@ -199,6 +283,7 @@ class SneakerService {
       totalPairs,
       totalInventoryValue,
       lowStockCount,
+      lowStockSneakers,
       brandCounts
     };
   }

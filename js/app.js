@@ -1,20 +1,26 @@
 import { InventoryView } from './views/inventoryView.js';
+import { SalesView } from './views/salesView.js';
 import { StatsView } from './views/statsView.js';
 import { CatalogView } from './views/brandView.js';
 
 class App {
   constructor() {
-    this.currentView = 'inventory';
+    this.currentView = 'stats';
     this.views = {
+      stats: {
+        title: 'Métricas, KPIs y Filtros Avanzados',
+        subtitle: 'Dashboard ejecutivo consolidado con exportación de reportes',
+        handler: StatsView
+      },
       inventory: {
         title: 'Gestión de Inventario (ABM)',
         subtitle: 'Administración y control de existencias en memoria',
         handler: InventoryView
       },
-      stats: {
-        title: 'Métricas y Estadísticas',
-        subtitle: 'Resumen ejecutivo y KPIs de stock',
-        handler: StatsView
+      sales: {
+        title: 'Gestión de Ventas y Pedidos (ABM)',
+        subtitle: 'Registro de transacciones y control de stock reactivo',
+        handler: SalesView
       },
       catalog: {
         title: 'Catálogo Visual de Sneakers',
@@ -26,7 +32,7 @@ class App {
 
   init() {
     this.bindNavigation();
-    this.navigateTo('inventory');
+    this.navigateTo('stats'); // Iniciar en el módulo de métricas y filtros
   }
 
   bindNavigation() {
