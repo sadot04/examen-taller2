@@ -1,4 +1,5 @@
 import { InventoryView } from './views/inventoryView.js';
+import { SalesView } from './views/salesView.js';
 import { StatsView } from './views/statsView.js';
 import { CatalogView } from './views/brandView.js';
 
@@ -11,9 +12,14 @@ class App {
         subtitle: 'Administración y control de existencias en memoria',
         handler: InventoryView
       },
+      sales: {
+        title: 'Gestión de Ventas y Pedidos (ABM)',
+        subtitle: 'Registro de transacciones y control de stock reactivo',
+        handler: SalesView
+      },
       stats: {
         title: 'Métricas y Estadísticas',
-        subtitle: 'Resumen ejecutivo y KPIs de stock',
+        subtitle: 'Resumen ejecutivo de stock e ingresos por ventas',
         handler: StatsView
       },
       catalog: {
@@ -26,7 +32,7 @@ class App {
 
   init() {
     this.bindNavigation();
-    this.navigateTo('inventory');
+    this.navigateTo('sales'); // Iniciar en el módulo de ventas o inventario
   }
 
   bindNavigation() {

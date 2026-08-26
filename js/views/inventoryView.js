@@ -7,7 +7,7 @@ export const InventoryView = {
     container.innerHTML = `
       <div class="toolbar">
         <div class="search-filter-group">
-          <input type="text" id="inventory-search" class="input-search" placeholder="🔍 Buscar por modelo, marca o SKU...">
+          <input type="text" id="inventory-search" class="input-search" placeholder="🔍 Buscar por modelo, marca, color o SKU...">
           <select id="brand-filter" class="select-filter">
             <option value="ALL">Todas las marcas</option>
             <option value="Nike">Nike</option>
@@ -16,9 +16,16 @@ export const InventoryView = {
             <option value="Puma">Puma</option>
             <option value="Jordan">Jordan</option>
           </select>
+          <select id="category-filter" class="select-filter">
+            <option value="ALL">Todas las categorías</option>
+            <option value="Basketball">Basketball</option>
+            <option value="Lifestyle">Lifestyle</option>
+            <option value="Running">Running</option>
+            <option value="Skate">Skate</option>
+          </select>
         </div>
         <button id="btn-add-sneaker" class="btn btn-primary">
-          <span>+</span> Nuevo Sneaker
+          <span>+</span> Registrar Sneaker
         </button>
       </div>
 
@@ -27,49 +34,55 @@ export const InventoryView = {
           <table class="custom-table">
             <thead>
               <tr>
-                <th>Producto</th>
+                <th>ID</th>
+                <th>Modelo y Foto</th>
                 <th>Marca</th>
-                <th>Talla (US)</th>
+                <th>Categoría</th>
                 <th>SKU</th>
+                <th>Talla</th>
+                <th>Color</th>
                 <th>Precio</th>
                 <th>Stock</th>
                 <th style="text-align: right;">Acciones</th>
               </tr>
             </thead>
             <tbody id="sneakers-table-body">
-              <!-- Renderizado dinámico -->
+              <!-- Renderizado dinámico seguro -->
             </tbody>
           </table>
         </div>
       </div>
 
-      <!-- Modal de Alta y Edición -->
+      <!-- Modal de Formulario ABM (Alta / Modificación) -->
       <div id="sneaker-modal" class="modal-backdrop">
         <div class="modal-box">
           <div class="modal-header">
-            <h3 id="modal-title">Agregar Nuevo Sneaker</h3>
+            <h3 id="modal-title">Registrar Nuevo Sneaker</h3>
             <button type="button" class="close-btn" id="btn-close-modal">&times;</button>
           </div>
-          <form id="sneaker-form">
+          <form id="sneaker-form" novalidate>
             <div class="modal-body">
               <div id="form-error-alert" class="form-errors"></div>
               
               <div class="form-grid">
                 <div class="form-group">
-                  <label>Marca *</label>
-                  <input type="text" id="input-brand" class="form-control" placeholder="Ej: Nike" required>
+                  <label for="input-modelo">Modelo *</label>
+                  <input type="text" id="input-modelo" class="form-control" placeholder="Ej: Air Jordan 1 Retro" required>
+                  <small class="field-help" style="color: var(--text-muted); font-size: 0.75rem;">Nombre descriptivo del modelo</small>
                 </div>
                 <div class="form-group">
-                  <label>Modelo *</label>
-                  <input type="text" id="input-model" class="form-control" placeholder="Ej: Air Max 90" required>
+                  <label for="input-marca">Marca *</label>
+                  <input type="text" id="input-marca" class="form-control" placeholder="Ej: Nike" required>
+                  <small class="field-help" style="color: var(--text-muted); font-size: 0.75rem;">Fabricante o marca oficial</small>
                 </div>
                 <div class="form-group">
-                  <label>SKU (Código único) *</label>
-                  <input type="text" id="input-sku" class="form-control" placeholder="Ej: CD0881-100" required>
+                  <label for="input-sku">SKU (Código Único) *</label>
+                  <input type="text" id="input-sku" class="form-control" placeholder="Ej: DZ5485-612" required>
+                  <small class="field-help" style="color: var(--text-muted); font-size: 0.75rem;">Identificador comercial único</small>
                 </div>
                 <div class="form-group">
-                  <label>Categoría</label>
-                  <select id="input-category" class="form-control">
+                  <label for="input-categoria">Categoría</label>
+                  <select id="input-categoria" class="form-control">
                     <option value="Lifestyle">Lifestyle</option>
                     <option value="Basketball">Basketball</option>
                     <option value="Running">Running</option>
@@ -77,30 +90,34 @@ export const InventoryView = {
                   </select>
                 </div>
                 <div class="form-group">
-                  <label>Talla (US) *</label>
-                  <input type="number" id="input-size" step="0.5" class="form-control" placeholder="Ej: 10.5" required>
+                  <label for="input-talla">Talla (Número) *</label>
+                  <input type="number" id="input-talla" step="0.5" min="1" max="20" class="form-control" placeholder="Ej: 10.5" required>
+                  <small class="field-help" style="color: var(--text-muted); font-size: 0.75rem;">Talla numérica (ej: 8.5, 9, 10)</small>
                 </div>
                 <div class="form-group">
-                  <label>Precio ($USD) *</label>
-                  <input type="number" id="input-price" step="0.01" class="form-control" placeholder="Ej: 150.00" required>
+                  <label for="input-color">Color / Colorway *</label>
+                  <input type="text" id="input-color" class="form-control" placeholder="Ej: Blanco / Rojo Chicago" required>
+                  <small class="field-help" style="color: var(--text-muted); font-size: 0.75rem;">Combinación cromática</small>
                 </div>
                 <div class="form-group">
-                  <label>Stock Disponible *</label>
-                  <input type="number" id="input-stock" class="form-control" placeholder="Ej: 8" required>
+                  <label for="input-precio">Precio ($USD) *</label>
+                  <input type="number" id="input-precio" step="0.01" min="1" class="form-control" placeholder="Ej: 180.00" required>
+                  <small class="field-help" style="color: var(--text-muted); font-size: 0.75rem;">Valor numérico mayor a 0</small>
                 </div>
                 <div class="form-group">
-                  <label>Colorway</label>
-                  <input type="text" id="input-colorway" class="form-control" placeholder="Ej: Triple White">
+                  <label for="input-stock">Stock (Número) *</label>
+                  <input type="number" id="input-stock" step="1" min="0" class="form-control" placeholder="Ej: 12" required>
+                  <small class="field-help" style="color: var(--text-muted); font-size: 0.75rem;">Cantidad en inventario (&ge; 0)</small>
                 </div>
                 <div class="form-group col-span-2">
-                  <label>URL de Imagen</label>
-                  <input type="url" id="input-image" class="form-control" placeholder="https://ejemplo.com/sneaker.jpg">
+                  <label for="input-imagen">URL de Imagen (Opcional)</label>
+                  <input type="url" id="input-imagen" class="form-control" placeholder="https://ejemplo.com/sneaker.jpg">
                 </div>
               </div>
             </div>
             <div class="modal-footer">
               <button type="button" class="btn btn-secondary" id="btn-cancel-modal">Cancelar</button>
-              <button type="submit" class="btn btn-primary" id="btn-save-modal">Guardar</button>
+              <button type="submit" class="btn btn-primary" id="btn-save-modal">Guardar Sneaker</button>
             </div>
           </form>
         </div>
@@ -114,6 +131,7 @@ export const InventoryView = {
   bindEvents() {
     const searchInput = document.getElementById('inventory-search');
     const brandFilter = document.getElementById('brand-filter');
+    const categoryFilter = document.getElementById('category-filter');
     const btnAdd = document.getElementById('btn-add-sneaker');
     const btnCloseModal = document.getElementById('btn-close-modal');
     const btnCancelModal = document.getElementById('btn-cancel-modal');
@@ -121,6 +139,7 @@ export const InventoryView = {
 
     searchInput?.addEventListener('input', () => this.refreshTable());
     brandFilter?.addEventListener('change', () => this.refreshTable());
+    categoryFilter?.addEventListener('change', () => this.refreshTable());
 
     btnAdd?.addEventListener('click', () => this.openModal());
     btnCloseModal?.addEventListener('click', () => this.closeModal());
@@ -134,51 +153,152 @@ export const InventoryView = {
 
   refreshTable() {
     const search = document.getElementById('inventory-search')?.value || '';
-    const brand = document.getElementById('brand-filter')?.value || '';
+    const marca = document.getElementById('brand-filter')?.value || '';
+    const categoria = document.getElementById('category-filter')?.value || '';
     const tbody = document.getElementById('sneakers-table-body');
     if (!tbody) return;
 
-    const sneakers = sneakerService.getAll({ search, brand });
+    tbody.innerHTML = '';
+    const sneakers = sneakerService.listar({ search, marca, categoria });
 
     if (sneakers.length === 0) {
-      tbody.innerHTML = `
-        <tr>
-          <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 32px;">
-            No se encontraron pares en el inventario con los criterios seleccionados.
-          </td>
-        </tr>
-      `;
+      const emptyRow = document.createElement('tr');
+      const emptyCell = document.createElement('td');
+      emptyCell.colSpan = 10;
+      emptyCell.style.textAlign = 'center';
+      emptyCell.style.color = 'var(--text-muted)';
+      emptyCell.style.padding = '36px';
+      emptyCell.textContent = 'No se encontraron sneakers en el inventario que coincidan con la búsqueda.';
+      emptyRow.appendChild(emptyCell);
+      tbody.appendChild(emptyRow);
       return;
     }
 
-    tbody.innerHTML = sneakers.map(s => `
-      <tr>
-        <td>
-          <div class="product-cell">
-            <img src="${s.imageUrl}" alt="${s.model}" class="product-thumbnail" onerror="this.src='https://images.unsplash.com/photo-1552346154-21d32810aba3?auto=format&fit=crop&w=400&q=80'">
-            <div>
-              <div style="font-weight: 600; color: var(--text-primary);">${s.model}</div>
-              <div style="font-size: 0.78rem; color: var(--text-muted);">${s.colorway} &bull; ${s.category}</div>
-            </div>
-          </div>
-        </td>
-        <td><span class="badge badge-brand">${s.brand}</span></td>
-        <td><strong>US ${s.size}</strong></td>
-        <td><code>${s.sku}</code></td>
-        <td><strong>$${s.price.toFixed(2)}</strong></td>
-        <td>
-          <span class="badge ${s.stock <= 3 ? 'badge-stock-low' : 'badge-stock-ok'}">
-            ${s.stock} un.
-          </span>
-        </td>
-        <td style="text-align: right;">
-          <div style="display: inline-flex; gap: 8px;">
-            <button class="btn btn-secondary btn-sm" onclick="window.inventoryModule.edit('${s.id}')">Editar</button>
-            <button class="btn btn-danger btn-sm" onclick="window.inventoryModule.delete('${s.id}')">Eliminar</button>
-          </div>
-        </td>
-      </tr>
-    `).join('');
+    sneakers.forEach(s => {
+      const tr = document.createElement('tr');
+
+      // 1. ID
+      const tdId = document.createElement('td');
+      tdId.style.color = 'var(--text-muted)';
+      tdId.style.fontSize = '0.8rem';
+      tdId.style.fontFamily = 'monospace';
+      tdId.textContent = `#${s.id}`;
+      tr.appendChild(tdId);
+
+      // 2. Modelo y Foto
+      const tdModel = document.createElement('td');
+      const productCell = document.createElement('div');
+      productCell.className = 'product-cell';
+
+      const img = document.createElement('img');
+      img.src = s.imageUrl || 'https://images.unsplash.com/photo-1552346154-21d32810aba3?auto=format&fit=crop&w=400&q=80';
+      img.alt = s.modelo;
+      img.className = 'product-thumbnail';
+      img.onerror = () => {
+        img.src = 'https://images.unsplash.com/photo-1552346154-21d32810aba3?auto=format&fit=crop&w=400&q=80';
+      };
+
+      const infoDiv = document.createElement('div');
+      const modelTitle = document.createElement('div');
+      modelTitle.style.fontWeight = '600';
+      modelTitle.style.color = 'var(--text-primary)';
+      modelTitle.textContent = s.modelo;
+
+      const colorDesc = document.createElement('div');
+      colorDesc.style.fontSize = '0.78rem';
+      colorDesc.style.color = 'var(--text-muted)';
+      colorDesc.textContent = s.color;
+
+      infoDiv.appendChild(modelTitle);
+      infoDiv.appendChild(colorDesc);
+      productCell.appendChild(img);
+      productCell.appendChild(infoDiv);
+      tdModel.appendChild(productCell);
+      tr.appendChild(tdModel);
+
+      // 3. Marca
+      const tdMarca = document.createElement('td');
+      const badgeMarca = document.createElement('span');
+      badgeMarca.className = 'badge badge-brand';
+      badgeMarca.textContent = s.marca;
+      tdMarca.appendChild(badgeMarca);
+      tr.appendChild(tdMarca);
+
+      // 4. Categoría
+      const tdCat = document.createElement('td');
+      const badgeCat = document.createElement('span');
+      badgeCat.className = 'badge';
+      badgeCat.style.background = 'rgba(255,255,255,0.06)';
+      badgeCat.style.color = 'var(--text-secondary)';
+      badgeCat.textContent = s.categoria;
+      tdCat.appendChild(badgeCat);
+      tr.appendChild(tdCat);
+
+      // 5. SKU
+      const tdSku = document.createElement('td');
+      const codeSku = document.createElement('code');
+      codeSku.textContent = s.sku;
+      tdSku.appendChild(codeSku);
+      tr.appendChild(tdSku);
+
+      // 6. Talla
+      const tdTalla = document.createElement('td');
+      const strongTalla = document.createElement('strong');
+      strongTalla.textContent = `US ${s.talla}`;
+      tdTalla.appendChild(strongTalla);
+      tr.appendChild(tdTalla);
+
+      // 7. Color
+      const tdColor = document.createElement('td');
+      const spanColor = document.createElement('span');
+      spanColor.style.color = 'var(--text-secondary)';
+      spanColor.textContent = s.color;
+      tdColor.appendChild(spanColor);
+      tr.appendChild(tdColor);
+
+      // 8. Precio
+      const tdPrecio = document.createElement('td');
+      const strongPrecio = document.createElement('strong');
+      strongPrecio.style.color = '#fff';
+      strongPrecio.textContent = `$${s.precio.toFixed(2)}`;
+      tdPrecio.appendChild(strongPrecio);
+      tr.appendChild(tdPrecio);
+
+      // 9. Stock
+      const tdStock = document.createElement('td');
+      const badgeStock = document.createElement('span');
+      badgeStock.className = `badge ${s.stock <= 3 ? 'badge-stock-low' : 'badge-stock-ok'}`;
+      badgeStock.textContent = `${s.stock} pares`;
+      tdStock.appendChild(badgeStock);
+      tr.appendChild(tdStock);
+
+      // 10. Acciones
+      const tdActions = document.createElement('td');
+      tdActions.style.textAlign = 'right';
+
+      const actionsDiv = document.createElement('div');
+      actionsDiv.style.display = 'inline-flex';
+      actionsDiv.style.gap = '8px';
+
+      const btnEdit = document.createElement('button');
+      btnEdit.className = 'btn btn-secondary btn-sm';
+      btnEdit.textContent = '✏️ Editar';
+      btnEdit.title = 'Editar este sneaker';
+      btnEdit.addEventListener('click', () => this.edit(s.id));
+
+      const btnDelete = document.createElement('button');
+      btnDelete.className = 'btn btn-danger btn-sm';
+      btnDelete.textContent = '🗑️ Eliminar';
+      btnDelete.title = 'Eliminar este sneaker';
+      btnDelete.addEventListener('click', () => this.delete(s.id));
+
+      actionsDiv.appendChild(btnEdit);
+      actionsDiv.appendChild(btnDelete);
+      tdActions.appendChild(actionsDiv);
+      tr.appendChild(tdActions);
+
+      tbody.appendChild(tr);
+    });
   },
 
   openModal(sneaker = null) {
@@ -187,23 +307,23 @@ export const InventoryView = {
     const errorAlert = document.getElementById('form-error-alert');
     
     errorAlert.style.display = 'none';
-    errorAlert.innerHTML = '';
+    errorAlert.textContent = '';
 
     if (sneaker) {
       this.activeId = sneaker.id;
-      modalTitle.textContent = 'Editar Sneaker';
-      document.getElementById('input-brand').value = sneaker.brand;
-      document.getElementById('input-model').value = sneaker.model;
+      modalTitle.textContent = `Editar Sneaker (#${sneaker.id})`;
+      document.getElementById('input-modelo').value = sneaker.modelo;
+      document.getElementById('input-marca').value = sneaker.marca;
       document.getElementById('input-sku').value = sneaker.sku;
-      document.getElementById('input-category').value = sneaker.category;
-      document.getElementById('input-size').value = sneaker.size;
-      document.getElementById('input-price').value = sneaker.price;
+      document.getElementById('input-categoria').value = sneaker.categoria || 'Lifestyle';
+      document.getElementById('input-talla').value = sneaker.talla;
+      document.getElementById('input-color').value = sneaker.color;
+      document.getElementById('input-precio').value = sneaker.precio;
       document.getElementById('input-stock').value = sneaker.stock;
-      document.getElementById('input-colorway').value = sneaker.colorway;
-      document.getElementById('input-image').value = sneaker.imageUrl;
+      document.getElementById('input-imagen').value = sneaker.imageUrl;
     } else {
       this.activeId = null;
-      modalTitle.textContent = 'Agregar Nuevo Sneaker';
+      modalTitle.textContent = 'Registrar Nuevo Sneaker';
       document.getElementById('sneaker-form').reset();
     }
 
@@ -217,23 +337,33 @@ export const InventoryView = {
   },
 
   handleFormSubmit() {
+    const modelo = document.getElementById('input-modelo').value;
+    const marca = document.getElementById('input-marca').value;
+    const sku = document.getElementById('input-sku').value;
+    const categoria = document.getElementById('input-categoria').value;
+    const talla = parseFloat(document.getElementById('input-talla').value);
+    const color = document.getElementById('input-color').value;
+    const precio = parseFloat(document.getElementById('input-precio').value);
+    const stock = parseInt(document.getElementById('input-stock').value, 10);
+    const imageUrl = document.getElementById('input-imagen').value;
+
     const payload = {
-      brand: document.getElementById('input-brand').value,
-      model: document.getElementById('input-model').value,
-      sku: document.getElementById('input-sku').value,
-      category: document.getElementById('input-category').value,
-      size: parseFloat(document.getElementById('input-size').value),
-      price: parseFloat(document.getElementById('input-price').value),
-      stock: parseInt(document.getElementById('input-stock').value, 10),
-      colorway: document.getElementById('input-colorway').value,
-      imageUrl: document.getElementById('input-image').value || undefined
+      modelo,
+      marca,
+      sku,
+      categoria,
+      talla,
+      color,
+      precio,
+      stock,
+      imageUrl: imageUrl || undefined
     };
 
     let result;
     if (this.activeId) {
-      result = sneakerService.update(this.activeId, payload);
+      result = sneakerService.actualizar(this.activeId, payload);
     } else {
-      result = sneakerService.create(payload);
+      result = sneakerService.crear(payload);
     }
 
     if (result.success) {
@@ -241,26 +371,39 @@ export const InventoryView = {
       this.refreshTable();
     } else {
       const errorAlert = document.getElementById('form-error-alert');
-      errorAlert.innerHTML = result.errors.join('<br>');
+      errorAlert.textContent = '';
+      const strong = document.createElement('strong');
+      strong.textContent = 'Por favor corrige los siguientes errores:';
+      errorAlert.appendChild(strong);
+      errorAlert.appendChild(document.createElement('br'));
+      
+      result.errors.forEach(err => {
+        const line = document.createElement('div');
+        line.textContent = `• ${err}`;
+        errorAlert.appendChild(line);
+      });
       errorAlert.style.display = 'block';
     }
   },
 
   edit(id) {
-    const sneaker = sneakerService.getById(id);
+    const sneaker = sneakerService.buscarPorId(id);
     if (sneaker) {
       this.openModal(sneaker);
     }
   },
 
   delete(id) {
-    const sneaker = sneakerService.getById(id);
-    if (sneaker && confirm(`¿Estás seguro de eliminar "${sneaker.brand} - ${sneaker.model}"?`)) {
-      sneakerService.delete(id);
-      this.refreshTable();
+    const sneaker = sneakerService.buscarPorId(id);
+    if (sneaker && confirm(`¿Confirmas que deseas eliminar el sneaker "${sneaker.marca} - ${sneaker.modelo}" (SKU: ${sneaker.sku})?`)) {
+      const result = sneakerService.eliminar(id);
+      if (result && result.success === false) {
+        alert(result.errors.join('\n'));
+      } else {
+        this.refreshTable();
+      }
     }
   }
 };
 
-// Asignar al objeto global para callbacks de botones en tabla
 window.inventoryModule = InventoryView;

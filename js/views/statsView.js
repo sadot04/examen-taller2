@@ -1,32 +1,34 @@
 import { sneakerService } from '../services/SneakerService.js';
+import { saleService } from '../services/SaleService.js';
 
 export const StatsView = {
   render(container) {
-    const stats = sneakerService.getStats();
+    const sneakerStats = sneakerService.getStats();
+    const salesStats = saleService.getStats();
 
     container.innerHTML = `
       <div class="stats-grid">
         <div class="stat-card">
-          <div class="stat-icon">📦</div>
+          <div class="stat-icon">💵</div>
           <div class="stat-info">
-            <div class="stat-label">Modelos Registrados</div>
-            <div class="stat-value">${stats.totalItems}</div>
+            <div class="stat-label">Ingresos por Ventas</div>
+            <div class="stat-value" style="color: var(--success);">$${salesStats.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-icon">🛒</div>
+          <div class="stat-info">
+            <div class="stat-label">Ventas Concretadas</div>
+            <div class="stat-value">${salesStats.totalTransactions} (${salesStats.totalPairsSold} pares)</div>
           </div>
         </div>
 
         <div class="stat-card">
           <div class="stat-icon">👟</div>
           <div class="stat-info">
-            <div class="stat-label">Pares en Stock</div>
-            <div class="stat-value">${stats.totalPairs}</div>
-          </div>
-        </div>
-
-        <div class="stat-card">
-          <div class="stat-icon">💰</div>
-          <div class="stat-info">
-            <div class="stat-label">Valor Total Inventario</div>
-            <div class="stat-value">$${stats.totalInventoryValue.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
+            <div class="stat-label">Stock en Depósito</div>
+            <div class="stat-value">${sneakerStats.totalPairs} pares</div>
           </div>
         </div>
 
@@ -34,18 +36,18 @@ export const StatsView = {
           <div class="stat-icon">⚠️</div>
           <div class="stat-info">
             <div class="stat-label">Stock Crítico (&le;3)</div>
-            <div class="stat-value" style="color: ${stats.lowStockCount > 0 ? 'var(--danger)' : 'var(--text-primary)'};">
-              ${stats.lowStockCount}
+            <div class="stat-value" style="color: ${sneakerStats.lowStockCount > 0 ? 'var(--danger)' : 'var(--text-primary)'};">
+              ${sneakerStats.lowStockCount}
             </div>
           </div>
         </div>
       </div>
 
       <div class="glass-panel" style="margin-top: 24px;">
-        <h3 style="margin-bottom: 16px; font-size: 1.1rem;">Distribución de Stock por Marca</h3>
+        <h3 style="margin-bottom: 16px; font-size: 1.1rem;">Distribución de Stock Disponible por Marca</h3>
         <div style="display: flex; flex-direction: column; gap: 12px;">
-          ${Object.entries(stats.brandCounts).map(([brand, count]) => {
-            const percentage = stats.totalPairs > 0 ? Math.round((count / stats.totalPairs) * 100) : 0;
+          ${Object.entries(sneakerStats.brandCounts).map(([brand, count]) => {
+            const percentage = sneakerStats.totalPairs > 0 ? Math.round((count / sneakerStats.totalPairs) * 100) : 0;
             return `
               <div>
                 <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 6px;">
