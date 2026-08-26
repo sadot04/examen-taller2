@@ -1,5 +1,6 @@
 import { saleService } from '../services/SaleService.js';
 import { sneakerService } from '../services/SneakerService.js';
+import { getLocalDateString } from '../models/Sale.js';
 
 export const SalesView = {
   activeId: null,
@@ -32,7 +33,7 @@ export const SalesView = {
               </tr>
             </thead>
             <tbody id="sales-table-body">
-              <!-- Renderizado dinámico -->
+              <!-- Renderizado dinámico seguro mediante DOM APIs -->
             </tbody>
           </table>
         </div>
@@ -68,8 +69,8 @@ export const SalesView = {
                 </div>
 
                 <div class="form-group">
-                  <label for="sale-input-cantidad">Cantidad a Comprar *</label>
-                  <input type="number" id="sale-input-cantidad" min="1" step="1" class="form-control" value="1" required>
+                  <label for="sale-input-cantidad">Cantidad a Comprar (Pares) *</label>
+                  <input type="number" id="sale-input-cantidad" step="1" min="1" class="form-control" value="1" required>
                   <small id="sale-stock-hint" style="color: var(--text-muted); font-size: 0.75rem;">Stock disponible: --</small>
                 </div>
 
@@ -132,12 +133,24 @@ export const SalesView = {
     const select = document.getElementById('sale-input-sneaker');
     if (!select) return;
 
+    select.innerHTML = '';
+    const defaultOption = document.createElement('option');
+    defaultOption.value = '';
+    defaultOption.textContent = '-- Elige un sneaker disponible --';
+    select.appendChild(defaultOption);
+
     const sneakers = sneakerService.listar();
-    select.innerHTML = '<option value="">-- Elige un sneaker disponible --</option>' + sneakers.map(s => `
-      <option value="${s.id}" data-precio="${s.precio}" data-stock="${s.stock}" ${String(s.id) === String(selectedId) ? 'selected' : ''}>
-        ${s.marca} ${s.modelo} (US ${s.talla}) - Stock: ${s.stock} un. - $${s.precio.toFixed(2)}
-      </option>
-    `).join('');
+    sneakers.forEach(s => {
+      const option = document.createElement('option');
+      option.value = s.id;
+      option.setAttribute('data-precio', s.precio);
+      option.setAttribute('data-stock', s.stock);
+      option.textContent = `${s.marca} ${s.modelo} (US ${s.talla}) - Stock: ${s.stock} un. - $${s.precio.toFixed(2)}`;
+      if (String(s.id) === String(selectedId)) {
+        option.selected = true;
+      }
+      select.appendChild(option);
+    });
   },
 
   handleSneakerSelectionChange() {
@@ -161,10 +174,16 @@ export const SalesView = {
   },
 
   calculateTotalRealtime() {
-    const cantidad = parseInt(document.getElementById('sale-input-cantidad')?.value, 10) || 0;
+    const rawVal = document.getElementById('sale-input-cantidad')?.value;
+    const cantidad = rawVal !== '' && rawVal !== undefined ? Number(rawVal) : 0;
     const precio = parseFloat(document.getElementById('sale-input-precio')?.value) || 0;
     const totalEl = document.getElementById('sale-display-total');
     
+    if (isNaN(cantidad) || cantidad <= 0 || !Number.isInteger(cantidad)) {
+      if (totalEl) totalEl.textContent = '$0.00';
+      return;
+    }
+
     const total = cantidad * precio;
     if (totalEl) {
       totalEl.textContent = `$${total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -177,42 +196,107 @@ export const SalesView = {
     const tbody = document.getElementById('sales-table-body');
     if (!tbody) return;
 
+    tbody.innerHTML = '';
     const sales = saleService.listar({ search, fecha });
 
     if (sales.length === 0) {
-      tbody.innerHTML = `
-        <tr>
-          <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 36px;">
-            No se han registrado ventas o pedidos que coincidan con los filtros.
-          </td>
-        </tr>
-      `;
+      const emptyRow = document.createElement('tr');
+      const emptyCell = document.createElement('td');
+      emptyCell.colSpan = 8;
+      emptyCell.style.textAlign = 'center';
+      emptyCell.style.color = 'var(--text-muted)';
+      emptyCell.style.padding = '36px';
+      emptyCell.textContent = 'No se han registrado ventas o pedidos que coincidan con los filtros.';
+      emptyRow.appendChild(emptyCell);
+      tbody.appendChild(emptyRow);
       return;
     }
 
-    tbody.innerHTML = sales.map(s => `
-      <tr>
-        <td style="color: var(--text-muted); font-size: 0.8rem; font-family: monospace;">#VNT-${s.id}</td>
-        <td><span style="font-size: 0.85rem;">📅 ${s.fecha}</span></td>
-        <td><strong>${s.cliente}</strong></td>
-        <td>
-          <div style="font-weight: 600; color: var(--text-primary);">${s.sneakerSummary || 'Sneaker #' + s.sneakerId}</div>
-        </td>
-        <td><span class="badge" style="background: rgba(255,255,255,0.06);">${s.cantidad} par(es)</span></td>
-        <td>$${s.precioUnitario.toFixed(2)}</td>
-        <td><strong style="color: var(--success); font-size: 1rem;">$${s.total.toFixed(2)}</strong></td>
-        <td style="text-align: right;">
-          <div style="display: inline-flex; gap: 8px;">
-            <button class="btn btn-secondary btn-sm" onclick="window.salesModule.edit('${s.id}')" title="Modificar venta y recalcular">
-              ✏️ Editar
-            </button>
-            <button class="btn btn-danger btn-sm" onclick="window.salesModule.delete('${s.id}')" title="Anular venta y reponer stock">
-              🗑️ Anular
-            </button>
-          </div>
-        </td>
-      </tr>
-    `).join('');
+    sales.forEach(s => {
+      const tr = document.createElement('tr');
+
+      // 1. ID de Venta
+      const tdId = document.createElement('td');
+      tdId.style.color = 'var(--text-muted)';
+      tdId.style.fontSize = '0.8rem';
+      tdId.style.fontFamily = 'monospace';
+      tdId.textContent = `#VNT-${s.id}`;
+      tr.appendChild(tdId);
+
+      // 2. Fecha
+      const tdFecha = document.createElement('td');
+      const spanFecha = document.createElement('span');
+      spanFecha.style.fontSize = '0.85rem';
+      spanFecha.textContent = `📅 ${s.fecha}`;
+      tdFecha.appendChild(spanFecha);
+      tr.appendChild(tdFecha);
+
+      // 3. Cliente (asignado con textContent)
+      const tdCliente = document.createElement('td');
+      const strongCliente = document.createElement('strong');
+      strongCliente.textContent = s.cliente;
+      tdCliente.appendChild(strongCliente);
+      tr.appendChild(tdCliente);
+
+      // 4. Sneaker Vendido (asignado con textContent)
+      const tdSneaker = document.createElement('td');
+      const divSneaker = document.createElement('div');
+      divSneaker.style.fontWeight = '600';
+      divSneaker.style.color = 'var(--text-primary)';
+      divSneaker.textContent = s.sneakerSummary || `Sneaker #${s.sneakerId}`;
+      tdSneaker.appendChild(divSneaker);
+      tr.appendChild(tdSneaker);
+
+      // 5. Cantidad
+      const tdCant = document.createElement('td');
+      const badgeCant = document.createElement('span');
+      badgeCant.className = 'badge';
+      badgeCant.style.background = 'rgba(255,255,255,0.06)';
+      badgeCant.textContent = `${s.cantidad} par(es)`;
+      tdCant.appendChild(badgeCant);
+      tr.appendChild(tdCant);
+
+      // 6. Precio Unitario
+      const tdPrecio = document.createElement('td');
+      tdPrecio.textContent = `$${s.precioUnitario.toFixed(2)}`;
+      tr.appendChild(tdPrecio);
+
+      // 7. Total
+      const tdTotal = document.createElement('td');
+      const strongTotal = document.createElement('strong');
+      strongTotal.style.color = 'var(--success)';
+      strongTotal.style.fontSize = '1rem';
+      strongTotal.textContent = `$${s.total.toFixed(2)}`;
+      tdTotal.appendChild(strongTotal);
+      tr.appendChild(tdTotal);
+
+      // 8. Acciones
+      const tdActions = document.createElement('td');
+      tdActions.style.textAlign = 'right';
+
+      const actionsContainer = document.createElement('div');
+      actionsContainer.style.display = 'inline-flex';
+      actionsContainer.style.gap = '8px';
+
+      const btnEdit = document.createElement('button');
+      btnEdit.className = 'btn btn-secondary btn-sm';
+      btnEdit.textContent = '✏️ Editar';
+      btnEdit.title = 'Modificar venta y recalcular';
+      btnEdit.addEventListener('click', () => this.edit(s.id));
+
+      const btnDelete = document.createElement('button');
+      btnDelete.className = 'btn btn-danger btn-sm';
+      btnDelete.textContent = '🗑️ Anular';
+      btnDelete.title = 'Anular venta y reponer stock';
+      btnDelete.addEventListener('click', () => this.delete(s.id));
+
+      actionsContainer.appendChild(btnEdit);
+      actionsContainer.appendChild(btnDelete);
+      tdActions.appendChild(actionsContainer);
+      tr.appendChild(tdActions);
+
+      tbody.appendChild(tr);
+    });
   },
 
   openModal(sale = null) {
@@ -221,7 +305,7 @@ export const SalesView = {
     const errorAlert = document.getElementById('sale-form-error-alert');
     
     errorAlert.style.display = 'none';
-    errorAlert.innerHTML = '';
+    errorAlert.textContent = '';
 
     if (sale) {
       this.activeId = sale.id;
@@ -243,7 +327,7 @@ export const SalesView = {
       modalTitle.textContent = 'Registrar Nueva Venta';
       this.populateSneakerSelect();
       document.getElementById('sale-form').reset();
-      document.getElementById('sale-input-fecha').value = new Date().toISOString().split('T')[0];
+      document.getElementById('sale-input-fecha').value = getLocalDateString();
       document.getElementById('sale-stock-hint').textContent = 'Stock disponible: --';
     }
 
@@ -261,8 +345,11 @@ export const SalesView = {
     const cliente = document.getElementById('sale-input-cliente').value;
     const fecha = document.getElementById('sale-input-fecha').value;
     const sneakerId = document.getElementById('sale-input-sneaker').value;
-    const cantidad = parseInt(document.getElementById('sale-input-cantidad').value, 10);
-    const precioUnitario = parseFloat(document.getElementById('sale-input-precio').value);
+    const rawCantidad = document.getElementById('sale-input-cantidad').value;
+    const rawPrecio = document.getElementById('sale-input-precio').value;
+
+    const cantidad = rawCantidad !== '' ? Number(rawCantidad) : NaN;
+    const precioUnitario = rawPrecio !== '' ? Number(rawPrecio) : NaN;
 
     const payload = {
       cliente,
@@ -284,7 +371,17 @@ export const SalesView = {
       this.refreshTable();
     } else {
       const errorAlert = document.getElementById('sale-form-error-alert');
-      errorAlert.innerHTML = `<strong>Error en la operación:</strong><br>&bull; ${result.errors.join('<br>&bull; ')}`;
+      errorAlert.textContent = '';
+      const strong = document.createElement('strong');
+      strong.textContent = 'Error en la operación:';
+      errorAlert.appendChild(strong);
+      errorAlert.appendChild(document.createElement('br'));
+      
+      result.errors.forEach(err => {
+        const line = document.createElement('div');
+        line.textContent = `• ${err}`;
+        errorAlert.appendChild(line);
+      });
       errorAlert.style.display = 'block';
     }
   },
@@ -299,8 +396,12 @@ export const SalesView = {
   delete(id) {
     const sale = saleService.buscarPorId(id);
     if (sale && confirm(`¿Deseas anular la venta #VNT-${sale.id} de "${sale.cliente}"? Se repondrán ${sale.cantidad} pares al inventario.`)) {
-      saleService.eliminar(id);
-      this.refreshTable();
+      const result = saleService.eliminar(id);
+      if (result && result.success === false) {
+        alert(result.errors.join('\n'));
+      } else {
+        this.refreshTable();
+      }
     }
   }
 };

@@ -1,4 +1,4 @@
-import { Sale } from '../models/Sale.js';
+import { Sale, getLocalDateString } from '../models/Sale.js';
 import { sneakerService } from './SneakerService.js';
 
 /**
@@ -10,18 +10,35 @@ class SaleService {
     /** @type {Sale[]} */
     this.sales = [];
     this.nextId = 1;
+    
+    // Registrar SaleService en SneakerService para verificación de integridad referencial cruzada
+    sneakerService.setSaleService(this);
     this.loadSeedData();
   }
 
   /**
-   * Carga ventas semilla de prueba
+   * Verifica si existen ventas registradas para un ID de sneaker dado
+   * @param {string|number} sneakerId
+   * @returns {boolean}
+   */
+  hasSalesForSneaker(sneakerId) {
+    const targetId = String(sneakerId);
+    return this.sales.some(s => s.sneakerId === targetId);
+  }
+
+  /**
+   * Carga ventas semilla de prueba con fechas de negocio locales
    */
   loadSeedData() {
     const sneakers = sneakerService.listar();
     if (sneakers.length >= 2) {
+      const today = new Date();
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+
       this.crear({
         cliente: 'Carlos Mendoza',
-        fecha: new Date().toISOString().split('T')[0],
+        fecha: getLocalDateString(today),
         sneakerId: sneakers[0].id,
         cantidad: 1,
         precioUnitario: sneakers[0].precio
@@ -29,7 +46,7 @@ class SaleService {
 
       this.crear({
         cliente: 'Valeria Rojas',
-        fecha: new Date(Date.now() - 86400000).toISOString().split('T')[0],
+        fecha: getLocalDateString(yesterday),
         sneakerId: sneakers[1].id,
         cantidad: 2,
         precioUnitario: sneakers[1].precio
@@ -38,56 +55,63 @@ class SaleService {
   }
 
   /**
-   * CREAR VENTA (Alta con descuento de stock)
+   * CREAR VENTA (Alta con descuento de stock atómico tras validación)
    * @param {Object} data
    * @returns {{success: boolean, data?: Sale, errors?: string[]}}
    */
   crear(data) {
+    const rawCantidad = Number(data.cantidad);
     const sneaker = sneakerService.buscarPorId(data.sneakerId);
+    
     if (!sneaker) {
       return { success: false, errors: ['El sneaker seleccionado no existe en inventario.'] };
     }
 
-    const cantidad = parseInt(data.cantidad, 10) || 0;
     const precioUnitario = Number(data.precioUnitario !== undefined ? data.precioUnitario : sneaker.precio);
-
-    if (cantidad <= 0) {
-      return { success: false, errors: ['La cantidad a vender debe ser al menos 1 par.'] };
-    }
-
-    // Validar disponibilidad de stock
-    if (sneaker.stock < cantidad) {
-      return {
-        success: false,
-        errors: [`Stock insuficiente para "${sneaker.marca} - ${sneaker.modelo}". Disponible: ${sneaker.stock} pares, Solicitado: ${cantidad}.`]
-      };
-    }
-
-    const id = String(this.nextId++);
-    const total = cantidad * precioUnitario;
+    const fecha = data.fecha || getLocalDateString();
     const sneakerSummary = `${sneaker.marca} ${sneaker.modelo} (US ${sneaker.talla}) [${sneaker.sku}]`;
 
-    const sale = new Sale({
+    // 1. Construir y validar el objeto de venta completo antes de mutar el stock
+    const prospectiveSale = new Sale({
       ...data,
-      id,
-      cantidad,
+      id: String(this.nextId),
+      cliente: data.cliente,
+      fecha,
+      sneakerId: sneaker.id,
+      cantidad: rawCantidad,
       precioUnitario,
-      total,
+      total: rawCantidad * precioUnitario,
       sneakerSummary
     });
 
-    const validation = sale.validate();
+    const validation = prospectiveSale.validate();
     if (!validation.isValid) {
       return { success: false, errors: validation.errors };
     }
 
-    // Descontar stock en memoria
-    sneakerService.actualizar(sneaker.id, {
-      stock: sneaker.stock - cantidad
+    // 2. Validar disponibilidad de stock
+    if (sneaker.stock < rawCantidad) {
+      return {
+        success: false,
+        errors: [`Stock insuficiente para "${sneaker.marca} - ${sneaker.modelo}". Disponible: ${sneaker.stock} pares, Solicitado: ${rawCantidad}.`]
+      };
+    }
+
+    // 3. Aplicar descuento de stock atómicamente y verificar resultado
+    const updateResult = sneakerService.actualizar(sneaker.id, {
+      stock: sneaker.stock - rawCantidad
     });
 
-    this.sales.unshift(sale);
-    return { success: true, data: sale };
+    if (!updateResult || updateResult.success === false) {
+      return {
+        success: false,
+        errors: updateResult?.errors || ['Error al actualizar el stock del sneaker.']
+      };
+    }
+
+    this.nextId++;
+    this.sales.unshift(prospectiveSale);
+    return { success: true, data: prospectiveSale };
   }
 
   // Alias
@@ -141,7 +165,7 @@ class SaleService {
   }
 
   /**
-   * ACTUALIZAR VENTA (Modificación con ajuste de stock en memoria)
+   * ACTUALIZAR VENTA (Modificación segura con validación previa y stock atómico)
    * @param {string|number} id
    * @param {Object} data
    * @returns {{success: boolean, data?: Sale, errors?: string[]}}
@@ -154,71 +178,107 @@ class SaleService {
 
     const currentSale = this.sales[index];
     const newSneakerId = data.sneakerId ? String(data.sneakerId) : currentSale.sneakerId;
-    const newCantidad = data.cantidad !== undefined ? parseInt(data.cantidad, 10) : currentSale.cantidad;
+    const rawCantidad = data.cantidad !== undefined ? Number(data.cantidad) : currentSale.cantidad;
 
     const targetSneaker = sneakerService.buscarPorId(newSneakerId);
     if (!targetSneaker) {
-      return { success: false, errors: ['El sneaker seleccionado no existe.'] };
+      return { success: false, errors: ['El sneaker seleccionado no existe en el inventario activo.'] };
     }
 
     const newPrecioUnitario = Number(data.precioUnitario !== undefined ? data.precioUnitario : targetSneaker.precio);
+    const newTotal = rawCantidad * newPrecioUnitario;
+    const updatedSummary = `${targetSneaker.marca} ${targetSneaker.modelo} (US ${targetSneaker.talla}) [${targetSneaker.sku}]`;
 
-    // Ajuste de stock:
+    // 1. Construir la venta prospectiva y validar TODOS los campos antes de tocar inventario
+    const prospectiveSale = new Sale({
+      ...currentSale,
+      ...data,
+      id: currentSale.id,
+      cliente: data.cliente !== undefined ? data.cliente : currentSale.cliente,
+      fecha: data.fecha || currentSale.fecha,
+      sneakerId: newSneakerId,
+      cantidad: rawCantidad,
+      precioUnitario: newPrecioUnitario,
+      total: newTotal,
+      sneakerSummary: updatedSummary,
+      createdAt: currentSale.createdAt
+    });
+    prospectiveSale.updatedAt = new Date().toISOString();
+
+    const validation = prospectiveSale.validate();
+    if (!validation.isValid) {
+      return { success: false, errors: validation.errors };
+    }
+
+    // 2. Verificar disponibilidad de stock
     if (newSneakerId === currentSale.sneakerId) {
-      // Mismo sneaker: calcular diferencia neta
-      const delta = newCantidad - currentSale.cantidad; // si > 0 requiere más stock, si < 0 devuelve stock
+      const delta = rawCantidad - currentSale.cantidad;
       if (delta > 0 && targetSneaker.stock < delta) {
         return {
           success: false,
           errors: [`Stock insuficiente para aumentar la venta. Disponible adicional: ${targetSneaker.stock}, Requerido: ${delta}.`]
         };
       }
-      // Aplicar ajuste
-      sneakerService.actualizar(targetSneaker.id, {
-        stock: targetSneaker.stock - delta
-      });
     } else {
-      // Sneaker diferente: devolver stock al sneaker anterior y descontar del nuevo
-      const oldSneaker = sneakerService.buscarPorId(currentSale.sneakerId);
-      if (targetSneaker.stock < newCantidad) {
+      if (targetSneaker.stock < rawCantidad) {
         return {
           success: false,
-          errors: [`Stock insuficiente en el nuevo sneaker "${targetSneaker.modelo}". Disponible: ${targetSneaker.stock}, Requerido: ${newCantidad}.`]
+          errors: [`Stock insuficiente en el nuevo sneaker "${targetSneaker.modelo}". Disponible: ${targetSneaker.stock}, Requerido: ${rawCantidad}.`]
         };
       }
+    }
+
+    // 3. Aplicar ajustes de stock de manera atómica con rollback seguro
+    if (newSneakerId === currentSale.sneakerId) {
+      const delta = rawCantidad - currentSale.cantidad;
+      if (delta !== 0) {
+        const updateResult = sneakerService.actualizar(targetSneaker.id, {
+          stock: targetSneaker.stock - delta
+        });
+        if (!updateResult || updateResult.success === false) {
+          return {
+            success: false,
+            errors: updateResult?.errors || ['Error al ajustar el stock del sneaker.']
+          };
+        }
+      }
+    } else {
+      const oldSneaker = sneakerService.buscarPorId(currentSale.sneakerId);
+      
+      // Descontar primero del nuevo sneaker
+      const targetUpdate = sneakerService.actualizar(targetSneaker.id, {
+        stock: targetSneaker.stock - rawCantidad
+      });
+
+      if (!targetUpdate || targetUpdate.success === false) {
+        return {
+          success: false,
+          errors: targetUpdate?.errors || ['Error al descontar stock del nuevo sneaker.']
+        };
+      }
+
+      // Reponer stock al sneaker anterior
       if (oldSneaker) {
-        sneakerService.actualizar(oldSneaker.id, {
+        const oldUpdate = sneakerService.actualizar(oldSneaker.id, {
           stock: oldSneaker.stock + currentSale.cantidad
         });
+
+        if (!oldUpdate || oldUpdate.success === false) {
+          // Rollback: revertir descuento en el nuevo sneaker
+          sneakerService.actualizar(targetSneaker.id, {
+            stock: targetSneaker.stock
+          });
+          return {
+            success: false,
+            errors: oldUpdate?.errors || ['Error al reponer stock del sneaker original. Operación revertida.']
+          };
+        }
       }
-      sneakerService.actualizar(targetSneaker.id, {
-        stock: targetSneaker.stock - newCantidad
-      });
     }
 
-    const newTotal = newCantidad * newPrecioUnitario;
-    const updatedSummary = `${targetSneaker.marca} ${targetSneaker.modelo} (US ${targetSneaker.talla}) [${targetSneaker.sku}]`;
-
-    const updatedSale = new Sale({
-      ...currentSale,
-      ...data,
-      id: currentSale.id,
-      sneakerId: newSneakerId,
-      cantidad: newCantidad,
-      precioUnitario: newPrecioUnitario,
-      total: newTotal,
-      sneakerSummary: updatedSummary,
-      createdAt: currentSale.createdAt
-    });
-    updatedSale.updatedAt = new Date().toISOString();
-
-    const validation = updatedSale.validate();
-    if (!validation.isValid) {
-      return { success: false, errors: validation.errors };
-    }
-
-    this.sales[index] = updatedSale;
-    return { success: true, data: updatedSale };
+    // 4. Persistir la venta validada
+    this.sales[index] = prospectiveSale;
+    return { success: true, data: prospectiveSale };
   }
 
   // Alias
@@ -229,22 +289,37 @@ class SaleService {
   /**
    * ELIMINAR / ANULAR VENTA (Reponer stock automáticamente en memoria)
    * @param {string|number} id
-   * @returns {boolean}
+   * @returns {{success: boolean, errors?: string[]}|boolean}
    */
   eliminar(id) {
     const sale = this.buscarPorId(id);
-    if (!sale) return false;
+    if (!sale) {
+      return { success: false, errors: ['Venta no encontrada.'] };
+    }
 
     // Reponer el stock en SneakerService
     const sneaker = sneakerService.buscarPorId(sale.sneakerId);
-    if (sneaker) {
-      sneakerService.actualizar(sneaker.id, {
-        stock: sneaker.stock + sale.cantidad
-      });
+    if (!sneaker) {
+      return {
+        success: false,
+        errors: [`No se puede anular la venta #VNT-${sale.id} porque el sneaker asociado (#${sale.sneakerId}) ya no existe en el inventario.`]
+      };
+    }
+
+    // Reponer stock y verificar éxito
+    const updateResult = sneakerService.actualizar(sneaker.id, {
+      stock: sneaker.stock + sale.cantidad
+    });
+
+    if (!updateResult || updateResult.success === false) {
+      return {
+        success: false,
+        errors: updateResult?.errors || ['Error al reponer el stock del sneaker.']
+      };
     }
 
     this.sales = this.sales.filter(s => s.id !== String(id));
-    return true;
+    return { success: true };
   }
 
   // Alias

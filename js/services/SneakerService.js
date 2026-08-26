@@ -14,7 +14,16 @@ class SneakerService {
     /** @type {Sneaker[]} */
     this.sneakers = [];
     this.nextId = 1;
+    this.saleService = null;
     this.loadSeedData();
+  }
+
+  /**
+   * Permite registrar la referencia a SaleService para validaciones de integridad referencial
+   * @param {Object} service
+   */
+  setSaleService(service) {
+    this.saleService = service;
   }
 
   /**
@@ -223,14 +232,31 @@ class SneakerService {
 
   /**
    * ELIMINAR (Delete)
-   * Elimina un sneaker del arreglo en memoria por su ID
+   * Elimina un sneaker del arreglo en memoria por su ID aplicando integridad referencial
    * @param {string|number} id
-   * @returns {boolean}
+   * @returns {{success: boolean, errors?: string[]}|boolean}
    */
   eliminar(id) {
+    const targetId = String(id);
+    const sneaker = this.buscarPorId(targetId);
+    if (!sneaker) {
+      return { success: false, errors: ['Sneaker no encontrado.'] };
+    }
+
+    // Validar integridad referencial con ventas existentes
+    if (this.saleService && typeof this.saleService.hasSalesForSneaker === 'function') {
+      if (this.saleService.hasSalesForSneaker(targetId)) {
+        return {
+          success: false,
+          errors: [`No se puede eliminar el sneaker "${sneaker.marca} - ${sneaker.modelo}" porque posee ventas o pedidos registrados en el historial.`]
+        };
+      }
+    }
+
     const initialLength = this.sneakers.length;
-    this.sneakers = this.sneakers.filter(s => s.id !== String(id));
-    return this.sneakers.length < initialLength;
+    this.sneakers = this.sneakers.filter(s => s.id !== targetId);
+    const deleted = this.sneakers.length < initialLength;
+    return { success: deleted };
   }
 
   // Alias en inglés
