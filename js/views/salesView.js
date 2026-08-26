@@ -438,4 +438,6 @@ export const SalesView = {
   }
 };
 
-window.salesModule = SalesView;
+if (typeof window !== 'undefined') {
+  window.salesModule = SalesView;
+}

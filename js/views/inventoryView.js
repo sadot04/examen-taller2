@@ -345,5 +345,6 @@ export const InventoryView = {
   }
 };
 
-// Asignar al objeto global para compatibilidad
-window.inventoryModule = InventoryView;
+if (typeof window !== 'undefined') {
+  window.inventoryModule = InventoryView;
+}
