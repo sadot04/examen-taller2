@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KicksVault | Sistema de Gestión de Tienda de Sneakers</title>
+  <meta name="description" content="Sistema de gestión de inventario y operaciones ABM de sneakers en memoria.">
+  
+  <!-- CSS Stylesheets -->
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/components.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="brand-header">
+        <div class="brand-icon">👟</div>
+        <div class="brand-text">
+          <h1>KicksVault</h1>
+          <span>Inventory OS</span>
+        </div>
+      </div>
+
+      <nav>
+        <ul class="nav-menu">
+          <li>
+            <a href="#inventory" class="nav-item active" data-view="inventory">
+              <span class="icon">📦</span>
+              <span>Inventario (ABM)</span>
+            </a>
+          </li>
+          <li>
+            <a href="#stats" class="nav-item" data-view="stats">
+              <span class="icon">📊</span>
+              <span>Dashboard & KPIs</span>
+            </a>
+          </li>
+          <li>
+            <a href="#catalog" class="nav-item" data-view="catalog">
+              <span class="icon">🗂️</span>
+              <span>Catálogo Visual</span>
+            </a>
+          </li>
+        </ul>
+      </nav>
+
+      <div class="sidebar-footer">
+        <p><strong>Modo:</strong> En Memoria</p>
+        <p>v1.0.0 &bull; Vanilla JS</p>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <header class="topbar">
+        <div class="page-title">
+          <h2 id="current-page-title">Gestión de Inventario</h2>
+          <p id="current-page-desc">Administración y control de existencias en memoria</p>
+        </div>
+      </header>
+
+      <section class="content-body" id="view-container">
+        <!-- Renderizado dinámico de módulos -->
+      </section>
+    </main>
+  </div>
+
+  <!-- Entry Script (ES Modules) -->
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
